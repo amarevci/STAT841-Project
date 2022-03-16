@@ -1,0 +1,80 @@
+---
+title: "Kaggle Project"
+author: "Abetare Marevci"
+date: "16/03/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(mice)
+library(caret)
+library(imputeMissings)
+set.seed(841)
+setwd("C://Users//abbym//Documents//STAT841//Kaggle Report")
+data <- read.csv("C://Users//abbym//Documents//STAT841//Kaggle Report//train.csv")
+test <- read.csv("C://Users//abbym//Documents//STAT841//Kaggle Report//test.csv")
+#data
+# nrow(data)
+# ncol(data)
+wholedata1 <- rbind(data[,-1209], test)
+wholedata <- wholedata1[,-(1:3)]
+threshold <- 0.85
+names(wholedata)[sapply(wholedata, function(x) mean(is.na(x)) > threshold)]
+
+thresholdmissing <- unname(which(sapply(wholedata, function(x) mean(is.na(x)) > threshold)))
+thresholdmissing
+wholedata <- wholedata[ , -thresholdmissing]
+head(wholedata)
+head(data)
+# allmissingdata <- sapply(wholedata, function(x) sum(is.na(x)))
+# allmissing <- unname(which(allmissingdata==dim(wholedata)[1]))
+
+#imputing on all of the data
+allimpute <- impute(wholedata, method="median/mode")
+imputealldataNA <- data.frame(sapply(allimpute, function(x) as.numeric(as.character(x))))
+allNA <- sapply(imputealldataNA, function(x) sum(is.na(x)))
+any(allNA >0 )
+head(imputealldataNA)
+
+
+trainimpute <- cbind(imputealldataNA[1:nrow(data), ], data[, 1209, drop = FALSE])
+testimpute <- imputealldataNA[(nrow(data) + 1):nrow(imputealldataNA), ]
+
+train$health <- as.factor(train$health)
+# train
+# test
+
+fitcontrol <- trainControl(method="cv", number = 10)
+
+#algorithm for tuning the parameters using boosting (gbm)
+gbmGrid <-  expand.grid(interaction.depth = c(1, 2), 
+                        n.trees = (1:40)*50, 
+                        shrinkage = c(0.001, 0.01, 0.1),
+                        n.minobsinnode = 5)
+                        
+nrow(gbmGrid)
+
+modelBoost2 <- train(Class ~ ., data = trainimpute, 
+                 method = "gbm", 
+                 trControl = fitControl, 
+                 verbose = FALSE, 
+                 tuneGrid = gbmGrid)
+modelBoost2
+
+
+#modelBoost <- train(health~., data = trainimpute, method="gbm", 
+                    #trControl=fitcontrol)
+
+BoostPred <- predict(modelBoost2, newdata = testimpute, type = "prob")
+BoostPred2 <- cbind(test[ ,1, drop = FALSE], BoostPred)
+colnames(BoostPred2) <- c("uniqueid", "p1", "p2", "p3", "p4", "p5")
+write.csv(BoostPred2, paste("boostmod2_", Sys.Date(), ".csv", sep = ''))
+
+```
+
+
+
